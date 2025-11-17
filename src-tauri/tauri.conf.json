@@ -1,0 +1,35 @@
+{
+  "productName": "Vaulty",
+  "version": "0.1.0",
+  "identifier": "com.vaulty.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Vaulty - PDF Exercise Extractor",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "PDF Exercise Extractor",
+  "description": "An application to upload a PDF, use Gemini to extract exercises, allow users to edit the data and draw bounding boxes around exercises on the PDF pages, and then export the structured data and cropped images.",
+  "requestFramePermissions": []
+}
