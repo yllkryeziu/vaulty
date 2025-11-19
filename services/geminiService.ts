@@ -1,28 +1,19 @@
-import { invoke } from '@tauri-apps/api/core';
-import type { GeminiResponse } from '../types';
+import { Exercise } from "../types";
+import { invoke } from '@tauri-apps/api/tauri';
 
-export async function extractExercisesFromImages(images: string[]): Promise<GeminiResponse> {
+export const analyzePageImage = async (base64Image: string | null, imagePath: string | null, apiKey: string): Promise<Partial<Exercise>[]> => {
+  if (!apiKey) throw new Error("API Key is missing");
+
   try {
-    // Call the Tauri backend command to extract exercises using Gemini
-    const response = await invoke<GeminiResponse>('extract_exercises_with_ai', { images });
+    const results = await invoke<Partial<Exercise>[]>("analyze_page_image", {
+      base64Image,
+      imagePath,
+      apiKey
+    });
 
-    // Basic validation
-    if (!response.courseName || !Array.isArray(response.exercises)) {
-      throw new Error("Invalid JSON structure received from Gemini.");
-    }
-
-    return response;
+    return results;
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    if (error instanceof Error) {
-      if (error.message.includes('API key not configured')) {
-        throw new Error("API key not configured. Please set your Gemini API key in Settings.");
-      }
-      if (error.message.includes('JSON')) {
-        throw new Error("Failed to parse response from AI. The AI may have returned an invalid format.");
-      }
-      throw error;
-    }
-    throw new Error("Failed to extract exercises from the document.");
+    console.error("Gemini Analysis Failed", error);
+    throw error;
   }
-}
+};

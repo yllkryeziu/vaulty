@@ -1,201 +1,112 @@
-import React, { useState, useEffect } from 'react';
-import { KeyRound, Moon, Eye, EyeOff, Save, Loader2 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import React, { useState, useContext, useEffect } from 'react';
+import { Key, Save, AlertTriangle, ExternalLink, Moon, Sun } from 'lucide-react';
+import { Button } from './Button';
+import { ApiKeyContext, ThemeContext } from '../App.tsx';
+import { SETTINGS_KEY } from '../constants';
 
-export const Settings: React.FC = () => {
-  const [apiKey, setApiKey] = useState('');
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const Settings = () => {
+  const { apiKey, setApiKey } = useContext(ApiKeyContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const [inputKey, setInputKey] = useState('');
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    loadApiKey();
-  }, []);
+    if (apiKey) setInputKey(apiKey);
+  }, [apiKey]);
 
-  const loadApiKey = async () => {
-    try {
-      const key = await invoke<string | null>('get_api_key');
-      if (key && key.length > 0) {
-        setApiKey(key);
-        setIsApiKeySet(true);
-      }
-    } catch (err) {
-      console.error('Failed to load API key:', err);
-    }
-  };
-
-  const handleSave = async () => {
-    setError(null);
-    setSaveSuccess(false);
-    setIsSaving(true);
-
-    try {
-      await invoke('save_api_key', { apiKey: apiKey.trim() });
-      setIsApiKeySet(apiKey.trim().length > 0);
-      setIsEditing(false);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Failed to save API key:', err);
-      setError('Failed to save API key. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSave = () => {
+    setApiKey(inputKey);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ apiKey: inputKey }));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
-    <div>
-      <header className="mb-6 pb-4 border-b border-neutral-900">
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
-        <p className="text-neutral-400">Manage your application settings.</p>
-      </header>
+    <div className="p-8 max-w-2xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">Settings</h1>
+        <p className="text-neutral-500 dark:text-neutral-400">Manage your application preferences and connections.</p>
+      </div>
+      
+      {/* Appearance */}
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-800 p-6 mb-6">
+        <div className="flex items-center justify-between">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg text-neutral-900 dark:text-white">
+                {theme === 'dark' ? <Moon size={24}/> : <Sun size={24}/>}
+              </div>
+              <div>
+                  <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-1">Appearance</h3>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Toggle between light and dark themes.</p>
+              </div>
+           </div>
+           <button 
+              onClick={toggleTheme}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-400 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}
+           >
+              <span 
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}`} 
+              />
+           </button>
+        </div>
+      </div>
 
-      <div className="space-y-8 max-w-2xl">
-        {/* API Key Section */}
-        <div className="bg-neutral-950/50 rounded-lg border border-neutral-900">
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-3">
-              <KeyRound size={20} />
-              <span>API Configuration</span>
-            </h2>
-            <p className="text-sm text-neutral-400 mt-1">
-              Your Google Gemini API key is stored securely and encrypted.
-            </p>
+      {/* API Key */}
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-800 p-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+            <Key size={24} />
           </div>
-          <div className="border-t border-neutral-900 p-6">
-            <label htmlFor="api-key" className="block text-sm font-medium text-neutral-400">
-              Gemini API Key
-            </label>
-            <div className="mt-2 space-y-3">
-              <div className="flex items-center gap-3">
-                {isEditing ? (
-                  <>
-                    <input
-                      id="api-key"
-                      type={showApiKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Enter your Gemini API key"
-                      className="flex-1 bg-neutral-800 text-white p-2 rounded-md border border-neutral-700 focus:ring-2 focus:ring-white focus:border-white outline-none text-sm font-mono"
-                    />
-                    <button
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="p-2 text-neutral-400 hover:text-white rounded-md hover:bg-neutral-800"
-                      title={showApiKey ? 'Hide API key' : 'Show API key'}
-                    >
-                      {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      id="api-key"
-                      type="text"
-                      disabled
-                      value={isApiKeySet ? '••••••••••••••••••••••••••••••• Set' : 'Not Set'}
-                      className="flex-1 bg-neutral-800 text-neutral-400 p-2 rounded-md border border-neutral-700 outline-none cursor-not-allowed text-sm font-mono"
-                    />
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${isApiKeySet ? 'bg-green-800/50 text-green-300' : 'bg-red-800/50 text-red-300'}`}>
-                      {isApiKeySet ? 'Configured' : 'Missing'}
-                    </span>
-                  </>
-                )}
-              </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-medium text-neutral-900 dark:text-white mb-1">Gemini API Key</h3>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+              Vaulty uses Google's Gemini 2.5 Flash model to analyze your documents. 
+              Your key is stored locally on your device and never sent to our servers.
+            </p>
+            
+            <div className="flex gap-2 mb-4">
+                <input 
+                  type="password" 
+                  className="flex-1 border border-neutral-300 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-mono text-sm"
+                  placeholder="AIzaSy..."
+                  value={inputKey}
+                  onChange={(e) => setInputKey(e.target.value)}
+                />
+                <Button onClick={handleSave} icon={saved ? <Key size={16}/> : <Save size={16}/>}>
+                  {saved ? 'Saved' : 'Save Key'}
+                </Button>
+            </div>
 
-              {error && (
-                <div className="bg-red-900/50 border border-red-700 text-red-300 p-3 rounded-md text-sm">
-                  {error}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex gap-3 items-start">
+                <AlertTriangle size={16} className="text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-amber-800 dark:text-amber-400">
+                    <p className="font-semibold mb-1">Don't have a key?</p>
+                    <p className="mb-2">You can get a free API key from Google AI Studio.</p>
+                    <a 
+                        href="https://aistudio.google.com/app/apikey" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center underline hover:text-amber-900 dark:hover:text-amber-300"
+                    >
+                        Get API Key <ExternalLink size={10} className="ml-1"/>
+                    </a>
                 </div>
-              )}
-
-              {saveSuccess && (
-                <div className="bg-green-900/50 border border-green-700 text-green-300 p-3 rounded-md text-sm">
-                  API key saved successfully!
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="bg-white text-black font-semibold py-2 px-4 rounded-md transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed text-sm focus:outline-none focus:ring-2 focus:ring-white flex items-center gap-2"
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Saving...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} />
-                          <span>Save</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsEditing(false);
-                        loadApiKey();
-                        setError(null);
-                      }}
-                      disabled={isSaving}
-                      className="bg-transparent border border-neutral-700 text-neutral-300 font-semibold py-2 px-4 rounded-md transition-colors hover:bg-neutral-900 disabled:opacity-50 text-sm"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="bg-neutral-800 text-white font-semibold py-2 px-4 rounded-md transition-colors hover:bg-neutral-700 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-600"
-                  >
-                    {isApiKeySet ? 'Update API Key' : 'Set API Key'}
-                  </button>
-                )}
-              </div>
-
-              <p className="text-xs text-neutral-500">
-                Get your API key from{' '}
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline"
-                >
-                  Google AI Studio
-                </a>
-              </p>
             </div>
           </div>
         </div>
-
-        {/* Appearance Section */}
-        <div className="bg-neutral-950/50 rounded-lg border border-neutral-900 opacity-60">
-          <div className="p-6">
-             <h2 className="text-lg font-semibold text-white flex items-center gap-3">
-              <Moon size={20} />
-              <span>Appearance</span>
-            </h2>
-             <p className="text-sm text-neutral-400 mt-1">
-              Customize the look and feel of the application.
-            </p>
-          </div>
-           <div className="border-t border-neutral-900 p-6 flex justify-between items-center">
-             <div>
-                <label htmlFor="dark-mode" className="block text-sm font-medium text-neutral-400">
-                Dark Mode
-                </label>
-                <p className="text-xs text-neutral-500 mt-1">Light mode coming soon.</p>
-             </div>
-             <div className="relative w-11 h-6 bg-neutral-700 rounded-full cursor-not-allowed">
-                <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full"></div>
-            </div>
-          </div>
+      </div>
+      
+      <div className="mt-8 border-t border-neutral-200 dark:border-neutral-800 pt-6">
+        <h4 className="text-sm font-semibold text-neutral-900 dark:text-white mb-4">Data Management</h4>
+        <div className="flex gap-4">
+             <Button variant="secondary" onClick={() => {
+                 if(window.confirm("Are you sure you want to clear all database data? This cannot be undone.")) {
+                     localStorage.clear();
+                     window.location.reload();
+                 }
+             }} className="text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:border-red-800 dark:border-neutral-700 dark:bg-transparent">
+                Clear Local Database
+             </Button>
         </div>
       </div>
     </div>

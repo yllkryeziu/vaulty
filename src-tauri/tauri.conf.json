@@ -1,35 +1,59 @@
 {
-  "productName": "Vaulty",
-  "version": "0.1.0",
-  "identifier": "com.vaulty.app",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
   },
-  "app": {
-    "windows": [
-      {
-        "title": "Vaulty - PDF Exercise Extractor",
-        "width": 1400,
-        "height": 900,
-        "minWidth": 1200,
-        "minHeight": 700,
-        "resizable": true,
-        "fullscreen": false
+  "package": {
+    "productName": "vaulty",
+    "version": "0.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "dialog": {
+        "open": true
+      },
+      "fs": {
+        "all": true,
+        "scope": ["$APP/*", "$APP_DATA/*"]
+      },
+      "path": {
+        "all": true
+      },
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "protocol": {
+        "asset": true,
+        "assetScope": ["**"]
       }
-    ],
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.vaulty.app",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ]
+    },
     "security": {
       "csp": null
-    }
-  },
-  "bundle": {
-    "active": true
-  },
-  "plugins": {
-    "shell": {
-      "open": true
-    }
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Vaulty",
+        "width": 1200,
+        "height": 800
+      }
+    ]
   }
 }
+
