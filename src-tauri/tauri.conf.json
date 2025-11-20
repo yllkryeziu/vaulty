@@ -31,6 +31,14 @@
         "assetScope": ["**"]
       }
     },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/yllkryeziu/vaulty/releases/latest/download/latest.json"
+      ],
+      "dialog": true,
+      "pubkey": ""
+    },
     "bundle": {
       "active": true,
       "targets": "all",

@@ -486,7 +486,7 @@ fn pdf_to_images(path: String) -> Result<Vec<String>, String> {
     if !success {
         // If both fail, create placeholders
         eprintln!("No PDF converter available, creating placeholders");
-        for page_num in 0..num_pages {
+        for _page_num in 0..num_pages {
             let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_pixel(
                 1224, 1584,
                 Rgba([255, 255, 255, 255])
@@ -549,6 +549,25 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             init_db(&app.handle()).expect("failed to init db");
+
+            // Check for updates on startup (in production builds only)
+            #[cfg(not(debug_assertions))]
+            {
+                let handle = app.handle();
+                tauri::async_runtime::spawn(async move {
+                    match handle.updater().check().await {
+                        Ok(update) => {
+                            if update.is_update_available() {
+                                println!("Update available: {}", update.latest_version());
+                            }
+                        }
+                        Err(e) => {
+                            println!("Failed to check for updates: {}", e);
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
