@@ -513,6 +513,60 @@ export const Database = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Course Dialog */}
+      {showEditCourseDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <Pencil size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">Edit Course</h2>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Course Name
+              </label>
+              <input
+                type="text"
+                value={editingCourseName}
+                onChange={(e) => setEditingCourseName(e.target.value)}
+                className="w-full px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                placeholder="Enter course name"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameCourse();
+                  if (e.key === 'Escape') {
+                    setShowEditCourseDialog(false);
+                    setEditingCourseName("");
+                  }
+                }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditCourseDialog(false);
+                  setEditingCourseName("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRenameCourse}
+                disabled={!editingCourseName.trim() || editingCourseName === selectedCourse}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
