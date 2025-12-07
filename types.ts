@@ -10,6 +10,7 @@ export interface Exercise {
   course: string; // Course name from the PDF page
   week: number; // Week number from the PDF page
   content?: string; // Text content if extracted
+  notes?: string; // User notes/solution
   imageUri?: string; // Base64 cropped image
   pageImageUri?: string; // Full page context
   boundingBox?: BoundingBox;

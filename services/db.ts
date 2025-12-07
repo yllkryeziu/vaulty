@@ -27,7 +27,7 @@ export const saveExercises = async (exercises: Exercise[]): Promise<Exercise[]> 
   for (const ex of exercises) {
     await invoke("save_exercise", { exercise: ex });
   }
-  
+
   triggerUpdate();
   return await getExercises();
 };
@@ -44,6 +44,18 @@ export const deleteExercise = async (id: string): Promise<Exercise[]> => {
 
 export const deleteCourse = async (course: string): Promise<Exercise[]> => {
   await invoke("delete_course", { course });
+  triggerUpdate();
+  return await getExercises();
+};
+
+export const updateExercise = async (exercise: Exercise): Promise<Exercise[]> => {
+  await invoke("save_exercise", { exercise });
+  triggerUpdate();
+  return await getExercises();
+};
+
+export const renameCourse = async (oldName: string, newName: string): Promise<Exercise[]> => {
+  await invoke("rename_course", { oldName, newName });
   triggerUpdate();
   return await getExercises();
 };

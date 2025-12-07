@@ -52,7 +52,6 @@ export const Extractor = () => {
   };
 
   const handleFileSelection = async (path: string) => {
-    console.log("Selected file:", path);
     setExtractedExercises([]);
     setSelectedExerciseId(null);
     setCurrentRect(null);
@@ -62,11 +61,9 @@ export const Extractor = () => {
     setPdfImages([]);
 
     if (path.toLowerCase().endsWith('.pdf')) {
-        console.log("Converting PDF to images...");
         setPdfPath(path);
         try {
             const images = await invoke<string[]>("pdf_to_images", { path });
-            console.log(`PDF converted to ${images.length} images`);
             setPdfImages(images);
 
             // Stitch all PDF pages together vertically
@@ -76,7 +73,6 @@ export const Extractor = () => {
             alert("Failed to convert PDF: " + JSON.stringify(e));
         }
     } else {
-        console.log("Loading image file:", path);
         setOriginalImagePath(path);
         setImageUri(convertFileSrc(path));
     }
@@ -86,20 +82,16 @@ export const Extractor = () => {
 
   // Stitch PDF pages vertically into one continuous image
   const stitchPdfPages = async (images: string[]) => {
-    console.log('[STITCH] Starting to stitch', images.length, 'pages');
     if (images.length === 0) {
-      console.log('[STITCH] No images to stitch');
       return;
     }
 
     // Load all images first
-    console.log('[STITCH] Loading all images...');
     const loadedImages = await Promise.all(
       images.map((src, index) => {
         return new Promise<HTMLImageElement>((resolve, reject) => {
           const img = new Image();
           img.onload = () => {
-            console.log('[STITCH] Image', index, 'loaded:', img.width, 'x', img.height);
             resolve(img);
           };
           img.onerror = (err) => {
@@ -111,7 +103,6 @@ export const Extractor = () => {
       })
     );
 
-    console.log('[STITCH] All images loaded, creating canvas...');
 
     // Create a canvas to stitch all pages together
     const stitchCanvas = document.createElement('canvas');
@@ -125,43 +116,30 @@ export const Extractor = () => {
     const maxWidth = Math.max(...loadedImages.map(img => img.width));
     const totalHeight = loadedImages.reduce((sum, img) => sum + img.height, 0);
 
-    console.log('[STITCH] Canvas size:', maxWidth, 'x', totalHeight);
     stitchCanvas.width = maxWidth;
     stitchCanvas.height = totalHeight;
 
     // Draw each page vertically
     let currentY = 0;
     for (const img of loadedImages) {
-      console.log('[STITCH] Drawing image at Y:', currentY);
       ctx.drawImage(img, 0, currentY, img.width, img.height);
       currentY += img.height;
     }
 
     // Convert to data URL and set as the main image
-    console.log('[STITCH] Converting to data URL...');
     const stitchedDataUrl = stitchCanvas.toDataURL('image/png');
-    console.log('[STITCH] Stitched image created, length:', stitchedDataUrl.length);
     setImageUri(stitchedDataUrl);
-    console.log('[STITCH] imageUri updated');
   };
 
   const handleAnalyze = async () => {
-    console.log('[ANALYZE] Starting analysis...');
-    console.log('[ANALYZE] apiKey exists:', !!apiKey);
-    console.log('[ANALYZE] imageUri exists:', !!imageUri);
-    console.log('[ANALYZE] imageUri length:', imageUri?.length);
-    console.log('[ANALYZE] originalImagePath:', originalImagePath);
-    console.log('[ANALYZE] pdfPath:', pdfPath);
 
     if (!apiKey) {
-      console.log('[ANALYZE] No API key, aborting');
       return;
     }
 
     // Use the current displayed image (stitched PDF or regular image)
     const currentImage = imageUri;
     if (!currentImage) {
-      console.log('[ANALYZE] No current image, aborting');
       return;
     }
 
@@ -170,17 +148,14 @@ export const Extractor = () => {
       let results;
       if (originalImagePath && !pdfPath) {
            // Analyzing uploaded image file (not PDF)
-           console.log('[ANALYZE] Using originalImagePath:', originalImagePath);
            results = await analyzePageImage(null, originalImagePath, apiKey);
       } else if (currentImage) {
            // Analyzing PDF (stitched) or data URI image
-           console.log('[ANALYZE] Using currentImage (base64), length:', currentImage.length);
            results = await analyzePageImage(currentImage, null, apiKey);
       } else {
            throw new Error("No image to analyze");
       }
 
-      console.log('[ANALYZE] Got results:', results);
 
       // Add full image URI, course, and week to each result
       const fullResults = results.map(r => ({
@@ -189,9 +164,7 @@ export const Extractor = () => {
         course: pageCourse,
         week: pageWeek
       })) as Exercise[];
-      console.log('[ANALYZE] Full results:', fullResults);
       setExtractedExercises(fullResults);
-      console.log('[ANALYZE] Exercises set successfully');
     } catch (error) {
       console.error("[ANALYZE] Analysis error:", error);
       alert(`Analysis failed: ${error instanceof Error ? error.message : "Please check your API Key and try again."}`);
@@ -259,24 +232,18 @@ export const Extractor = () => {
 
   // Update canvas size to match image
   useEffect(() => {
-    console.log('[CANVAS] useEffect triggered, imageUri exists:', !!imageUri);
-    console.log('[CANVAS] imageRef.current exists:', !!imageRef.current);
-    console.log('[CANVAS] canvasRef.current exists:', !!canvasRef.current);
 
     if (imageRef.current && canvasRef.current) {
         // Wait for image load
         const syncSize = () => {
              if (canvasRef.current && imageRef.current) {
-                console.log('[CANVAS] Syncing canvas size to:', imageRef.current.naturalWidth, 'x', imageRef.current.naturalHeight);
                 canvasRef.current.width = imageRef.current.naturalWidth;
                 canvasRef.current.height = imageRef.current.naturalHeight;
              }
         }
         if (imageRef.current.complete) {
-          console.log('[CANVAS] Image already complete, syncing now');
           syncSize();
         } else {
-          console.log('[CANVAS] Waiting for image to load...');
           imageRef.current.onload = syncSize;
         }
     }
@@ -284,12 +251,6 @@ export const Extractor = () => {
 
   // Log button states
   useEffect(() => {
-    console.log('[BUTTON STATE] imageUri:', !!imageUri, 'length:', imageUri?.length);
-    console.log('[BUTTON STATE] pdfImages.length:', pdfImages.length);
-    console.log('[BUTTON STATE] isAnalyzing:', isAnalyzing);
-    console.log('[BUTTON STATE] extractedExercises.length:', extractedExercises.length);
-    console.log('[BUTTON STATE] AI Extract button should be:', (imageUri || pdfImages.length > 0) ? 'visible' : 'hidden');
-    console.log('[BUTTON STATE] AI Extract button should be:', (isAnalyzing || extractedExercises.length > 0) ? 'disabled' : 'enabled');
   }, [imageUri, pdfImages, isAnalyzing, extractedExercises]);
 
   // Draw selection rect on canvas
@@ -323,41 +284,29 @@ export const Extractor = () => {
 
 
   const handleSaveAll = async () => {
-    console.log('[SAVE] Starting save...');
-    console.log('[SAVE] extractedExercises:', extractedExercises);
 
     const valid = extractedExercises.filter(ex => ex.imageUri); // Only save ones with crops
-    console.log('[SAVE] Valid exercises with crops:', valid.length);
 
     if (valid.length === 0) {
-      console.log('[SAVE] No valid exercises to save');
       return;
     }
 
     // Save images to disk
     let pageImagePath = "";
-    console.log('[SAVE] imageUri exists:', !!imageUri);
-    console.log('[SAVE] imageUri starts with data:', imageUri?.startsWith('data:'));
 
     if (imageUri && imageUri.startsWith('data:')) {
         try {
-            console.log('[SAVE] Saving page image...');
             pageImagePath = await saveImage(imageUri);
-            console.log('[SAVE] Page image saved to:', pageImagePath);
         } catch (e) {
             console.error("[SAVE] Failed to save page image", e);
         }
     }
 
-    console.log('[SAVE] Processing exercise crops...');
     const exercisesToSave = await Promise.all(valid.map(async (ex, index) => {
-        console.log('[SAVE] Processing exercise', index, ':', ex.name);
         let cropPath = ex.imageUri;
         if (ex.imageUri && ex.imageUri.startsWith('data:')) {
             try {
-                console.log('[SAVE] Saving crop for exercise', index);
                 cropPath = await saveImage(ex.imageUri);
-                console.log('[SAVE] Crop saved to:', cropPath);
             } catch (e) {
                 console.error("[SAVE] Failed to save crop", e);
             }
@@ -373,12 +322,9 @@ export const Extractor = () => {
         };
     }));
 
-    console.log('[SAVE] Exercises to save:', exercisesToSave);
-    console.log('[SAVE] Calling saveExercises...');
 
     try {
       await saveExercises(exercisesToSave);
-      console.log('[SAVE] Save successful, navigating to database...');
       navigate('/database');
     } catch (e) {
       console.error('[SAVE] Failed to save exercises:', e);
@@ -437,8 +383,6 @@ export const Extractor = () => {
                                 className="w-full h-auto object-contain"
                                 style={{ display: 'block', maxHeight: 'none' }}
                                 onLoad={() => {
-                                    console.log('[IMAGE] Image loaded, dimensions:', imageRef.current?.naturalWidth, 'x', imageRef.current?.naturalHeight);
-                                    console.log('[IMAGE] Displayed dimensions:', imageRef.current?.width, 'x', imageRef.current?.height);
                                 }}
                             />
                             <canvas

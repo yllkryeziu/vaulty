@@ -6,16 +6,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  variant = 'primary', 
-  size = 'md', 
-  className = '', 
-  children, 
+export const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  className = '',
+  children,
   icon,
-  ...props 
+  type = 'button',
+  ...props
 }) => {
   const baseStyles = "inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-neutral-900 disabled:opacity-50 disabled:pointer-events-none rounded-lg";
-  
+
   const variants = {
     primary: "bg-neutral-900 text-white hover:bg-neutral-800 focus:ring-neutral-900 shadow-sm dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200",
     secondary: "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50 focus:ring-neutral-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:focus:ring-neutral-700",
@@ -30,11 +31,12 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <button
+      type={type}
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
-      {icon && <span className="mr-2">{icon}</span>}
+      {icon && <span className="mr-2" aria-hidden="true">{icon}</span>}
       {children}
     </button>
   );

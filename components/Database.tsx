@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FileText, Hash, ChevronRight, ChevronDown, X, Filter, Folder, Trash2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { FileText, Hash, ChevronRight, ChevronDown, X, Filter, Folder, Trash2, Pencil } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { getExercises, organizeByCourse, getAllTags, getImageUrl, deleteExercise, deleteCourse } from '../services/db';
+import { getExercises, organizeByCourse, getAllTags, getImageUrl, deleteExercise, deleteCourse, updateExercise, renameCourse } from '../services/db';
 import { Exercise } from '../types';
 
 interface CourseNode {
@@ -30,6 +30,10 @@ export const Database = () => {
   const [showDeleteExerciseDialog, setShowDeleteExerciseDialog] = useState(false);
   const [showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
+
+  // Edit Course Dialog State
+  const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
+  const [editingCourseName, setEditingCourseName] = useState("");
 
   // Load exercises
   useEffect(() => {
@@ -119,21 +123,31 @@ export const Database = () => {
     setSelectedTags(prev => prev.filter(t => t !== tagToRemove));
   };
 
-  const removeTagFromExercise = (tag: string) => {
+  const removeTagFromExercise = async (tag: string) => {
     if (!selectedExercise) return;
     const updatedTags = selectedExercise.tags.filter(t => t !== tag);
     const updatedExercise = { ...selectedExercise, tags: updatedTags };
     setSelectedExercise(updatedExercise);
-    // TODO: Save to database
+    const updatedExercises = await updateExercise(updatedExercise);
+    setExercises(updatedExercises);
   };
 
-  const addTagToExercise = (tag: string) => {
+  const addTagToExercise = async (tag: string) => {
     if (!selectedExercise || selectedExercise.tags.includes(tag)) return;
     const updatedTags = [...selectedExercise.tags, tag];
     const updatedExercise = { ...selectedExercise, tags: updatedTags };
     setSelectedExercise(updatedExercise);
-    // TODO: Save to database
+    const updatedExercises = await updateExercise(updatedExercise);
+    setExercises(updatedExercises);
   };
+
+  const updateNotes = useCallback(async (notes: string) => {
+    if (!selectedExercise) return;
+    const updatedExercise = { ...selectedExercise, notes };
+    setSelectedExercise(updatedExercise);
+    const updatedExercises = await updateExercise(updatedExercise);
+    setExercises(updatedExercises);
+  }, [selectedExercise]);
 
   const handleDeleteExercise = async () => {
     if (!selectedExercise) return;
@@ -153,6 +167,15 @@ export const Database = () => {
     }
     setShowDeleteCourseDialog(false);
     setCourseToDelete(null);
+  };
+
+  const handleRenameCourse = async () => {
+    if (!selectedCourse || !editingCourseName.trim()) return;
+    const updatedExercises = await renameCourse(selectedCourse, editingCourseName.trim());
+    setExercises(updatedExercises);
+    setSelectedCourse(editingCourseName.trim());
+    setShowEditCourseDialog(false);
+    setEditingCourseName("");
   };
 
   // Get the currently selected course node
@@ -242,22 +265,36 @@ export const Database = () => {
 
           {selectedCourse && selectedCourseNode && (
             <div>
-              {/* Course Header with Delete Button */}
+              {/* Course Header with Edit and Delete Buttons */}
               <div className="flex items-center justify-between p-3 mb-2 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                   <Folder size={16} className="text-neutral-500" />
                   <span className="font-semibold text-sm text-neutral-900 dark:text-white truncate">{selectedCourse}</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setCourseToDelete(selectedCourse);
-                    setShowDeleteCourseDialog(true);
-                  }}
-                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors group"
-                  title="Delete course"
-                >
-                  <Trash2 size={14} className="text-neutral-400 group-hover:text-red-600 dark:group-hover:text-red-400" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCourseName(selectedCourse);
+                      setShowEditCourseDialog(true);
+                    }}
+                    className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors group"
+                    title="Edit course"
+                  >
+                    <Pencil size={14} className="text-neutral-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCourseToDelete(selectedCourse);
+                      setShowDeleteCourseDialog(true);
+                    }}
+                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors group"
+                    title="Delete course"
+                  >
+                    <Trash2 size={14} className="text-neutral-400 group-hover:text-red-600 dark:group-hover:text-red-400" />
+                  </button>
+                </div>
               </div>
 
               {/* Weeks */}
@@ -287,8 +324,8 @@ export const Database = () => {
                               key={ex.id}
                               onClick={() => setSelectedExercise(ex)}
                               className={`flex items-center gap-2 p-2 rounded-md text-sm cursor-pointer transition-colors ${selectedExercise?.id === ex.id
-                                  ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/20 dark:text-blue-300'
-                                  : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                                ? 'bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/20 dark:text-blue-300'
+                                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
                                 }`}
                             >
                               <FileText size={16} className={selectedExercise?.id === ex.id ? "text-blue-500" : "text-neutral-400"} />
@@ -389,6 +426,14 @@ export const Database = () => {
                 <textarea
                   className="w-full p-4 border border-neutral-200 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 dark:focus:ring-neutral-500 focus:outline-none min-h-[100px] text-sm resize-y"
                   placeholder="Add your solution or notes here..."
+                  value={selectedExercise.notes || ''}
+                  onChange={(e) => {
+                    const notes = e.target.value;
+                    setSelectedExercise({ ...selectedExercise, notes });
+                  }}
+                  onBlur={(e) => {
+                    updateNotes(e.target.value);
+                  }}
                 ></textarea>
               </div>
             </div>

@@ -4,7 +4,7 @@
 )]
 
 use base64::{engine::general_purpose, Engine as _};
-use rusqlite::{params, Connection, Result as SqlResult};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -27,6 +27,7 @@ struct Exercise {
     course: String,
     week: i64,
     content: Option<String>,
+    notes: Option<String>,
     #[serde(rename = "imageUri")]
     image_uri: Option<String>,
     #[serde(rename = "pageImageUri")]
@@ -37,33 +38,33 @@ struct Exercise {
     created_at: i64,
 }
 
-fn get_db_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
+fn get_db_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let path = app
         .path_resolver()
         .app_data_dir()
-        .expect("failed to get app data dir");
-    fs::create_dir_all(&path).expect("failed to create app data dir");
-    path.join("vaulty.db")
+        .ok_or_else(|| "Failed to get app data directory".to_string())?;
+    fs::create_dir_all(&path).map_err(|e| format!("Failed to create app data dir: {}", e))?;
+    Ok(path.join("vaulty.db"))
 }
 
-fn get_images_dir<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
+fn get_images_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let path = app
         .path_resolver()
         .app_data_dir()
-        .expect("failed to get app data dir")
+        .ok_or_else(|| "Failed to get app data directory".to_string())?
         .join("images");
-    fs::create_dir_all(&path).expect("failed to create images dir");
-    path
+    fs::create_dir_all(&path).map_err(|e| format!("Failed to create images dir: {}", e))?;
+    Ok(path)
 }
 
-fn init_db<R: Runtime>(app: &AppHandle<R>) -> SqlResult<()> {
-    let db_path = get_db_path(app);
-    let conn = Connection::open(db_path)?;
+fn init_db<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let db_path = get_db_path(app)?;
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     // Check if table exists and has correct schema
     let table_info: Result<Vec<String>, _> = conn
-        .prepare("PRAGMA table_info(exercises)")?
-        .query_map([], |row| row.get::<_, String>(1))?
+        .prepare("PRAGMA table_info(exercises)").map_err(|e| e.to_string())?
+        .query_map([], |row| row.get::<_, String>(1)).map_err(|e| e.to_string())?
         .collect();
 
     let columns = table_info.unwrap_or_default();
@@ -71,7 +72,7 @@ fn init_db<R: Runtime>(app: &AppHandle<R>) -> SqlResult<()> {
     // If table doesn't have 'tags' column, drop and recreate
     if !columns.is_empty() && !columns.contains(&"tags".to_string()) {
         eprintln!("[DB] Old schema detected, dropping and recreating exercises table...");
-        conn.execute("DROP TABLE IF EXISTS exercises", [])?;
+        conn.execute("DROP TABLE IF EXISTS exercises", []).map_err(|e| e.to_string())?;
     }
 
     conn.execute(
@@ -82,13 +83,20 @@ fn init_db<R: Runtime>(app: &AppHandle<R>) -> SqlResult<()> {
             course TEXT,
             week INTEGER,
             content TEXT,
+            notes TEXT,
             image_path TEXT,
             page_image_path TEXT,
             bounding_box TEXT,
             created_at INTEGER
         )",
         [],
-    )?;
+    ).map_err(|e| e.to_string())?;
+
+    // Add notes column if it doesn't exist (migration for existing databases)
+    if !columns.contains(&"notes".to_string()) && !columns.is_empty() {
+        eprintln!("[DB] Adding notes column to existing table...");
+        let _ = conn.execute("ALTER TABLE exercises ADD COLUMN notes TEXT", []);
+    }
 
     eprintln!("[DB] Database initialized successfully");
     Ok(())
@@ -96,11 +104,9 @@ fn init_db<R: Runtime>(app: &AppHandle<R>) -> SqlResult<()> {
 
 #[command]
 fn save_image<R: Runtime>(app: AppHandle<R>, base64_data: String) -> Result<String, String> {
-    eprintln!("[RUST SAVE_IMAGE] Starting save, data length: {}", base64_data.len());
-    let images_dir = get_images_dir(&app);
+    let images_dir = get_images_dir(&app)?;
     let file_name = format!("{}.png", Uuid::new_v4());
     let file_path = images_dir.join(&file_name);
-    eprintln!("[RUST SAVE_IMAGE] Saving to: {:?}", file_path);
 
     // Handle data:image/png;base64, prefix if present
     let base64_clean = if let Some(idx) = base64_data.find(',') {
@@ -132,11 +138,11 @@ fn save_image<R: Runtime>(app: AppHandle<R>, base64_data: String) -> Result<Stri
 
 #[command]
 fn get_all_exercises<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Exercise>, String> {
-    let db_path = get_db_path(&app);
+    let db_path = get_db_path(&app)?;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     let mut stmt = conn
-        .prepare("SELECT id, name, tags, course, week, content, image_path, page_image_path, bounding_box, created_at FROM exercises")
+        .prepare("SELECT id, name, tags, course, week, content, notes, image_path, page_image_path, bounding_box, created_at FROM exercises")
         .map_err(|e| e.to_string())?;
 
     let exercise_iter = stmt
@@ -144,7 +150,7 @@ fn get_all_exercises<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Exercise>, Str
             let tags_str: String = row.get(2)?;
             let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
 
-            let bbox_str: Option<String> = row.get(8)?;
+            let bbox_str: Option<String> = row.get(9)?;
             let bounding_box: Option<BoundingBox> = bbox_str
                 .and_then(|s| serde_json::from_str(&s).ok());
 
@@ -155,10 +161,11 @@ fn get_all_exercises<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Exercise>, Str
                 course: row.get(3)?,
                 week: row.get(4)?,
                 content: row.get(5)?,
-                image_uri: row.get(6)?,
-                page_image_uri: row.get(7)?,
+                notes: row.get(6)?,
+                image_uri: row.get(7)?,
+                page_image_uri: row.get(8)?,
                 bounding_box,
-                created_at: row.get(9)?,
+                created_at: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -173,23 +180,15 @@ fn get_all_exercises<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Exercise>, Str
 
 #[command]
 fn save_exercise<R: Runtime>(app: AppHandle<R>, exercise: Exercise) -> Result<(), String> {
-    eprintln!("[RUST SAVE_EXERCISE] Saving exercise: {}", exercise.name);
-    eprintln!("[RUST SAVE_EXERCISE] Course: {}, Week: {}", exercise.course, exercise.week);
-    eprintln!("[RUST SAVE_EXERCISE] Image URI: {:?}", exercise.image_uri.as_ref().map(|s| &s[..50.min(s.len())]));
-    eprintln!("[RUST SAVE_EXERCISE] Page Image URI: {:?}", exercise.page_image_uri.as_ref().map(|s| &s[..50.min(s.len())]));
-
-    let db_path = get_db_path(&app);
-    let conn = Connection::open(db_path).map_err(|e| {
-        eprintln!("[RUST SAVE_EXERCISE] ERROR: Failed to open DB: {}", e);
-        e.to_string()
-    })?;
+    let db_path = get_db_path(&app)?;
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     let tags_str = serde_json::to_string(&exercise.tags).map_err(|e| e.to_string())?;
     let bbox_str = serde_json::to_string(&exercise.bounding_box).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "INSERT OR REPLACE INTO exercises (id, name, tags, course, week, content, image_path, page_image_path, bounding_box, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO exercises (id, name, tags, course, week, content, notes, image_path, page_image_path, bounding_box, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             exercise.id,
             exercise.name,
@@ -197,6 +196,7 @@ fn save_exercise<R: Runtime>(app: AppHandle<R>, exercise: Exercise) -> Result<()
             exercise.course,
             exercise.week,
             exercise.content,
+            exercise.notes,
             exercise.image_uri,
             exercise.page_image_uri,
             bbox_str,
@@ -208,7 +208,6 @@ fn save_exercise<R: Runtime>(app: AppHandle<R>, exercise: Exercise) -> Result<()
         e.to_string()
     })?;
 
-    eprintln!("[RUST SAVE_EXERCISE] Exercise saved successfully");
     Ok(())
 }
 
@@ -384,7 +383,7 @@ async fn analyze_page_image(base64_image: Option<String>, image_path: Option<Str
 
 #[command]
 fn delete_exercise<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
-    let db_path = get_db_path(&app);
+    let db_path = get_db_path(&app)?;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     // First get the image paths to delete files
@@ -412,7 +411,7 @@ fn delete_exercise<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), Stri
 
 #[command]
 fn delete_course<R: Runtime>(app: AppHandle<R>, course: String) -> Result<(), String> {
-    let db_path = get_db_path(&app);
+    let db_path = get_db_path(&app)?;
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     // First get all image paths from exercises in this course to delete files
@@ -439,6 +438,19 @@ fn delete_course<R: Runtime>(app: AppHandle<R>, course: String) -> Result<(), St
 }
 
 #[command]
+fn rename_course<R: Runtime>(app: AppHandle<R>, old_name: String, new_name: String) -> Result<(), String> {
+    let db_path = get_db_path(&app)?;
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "UPDATE exercises SET course = ?1 WHERE course = ?2",
+        params![new_name, old_name]
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[command]
 fn pdf_to_images(path: String) -> Result<Vec<String>, String> {
     eprintln!("Converting PDF to images: {}", path);
     
@@ -456,20 +468,31 @@ fn pdf_to_images(path: String) -> Result<Vec<String>, String> {
     
     let mut image_data_urls = Vec::new();
     
-    // Try pdftoppm first (from poppler-utils), then fall back to sips (macOS)
-    let output = std::process::Command::new("pdftoppm")
-        .args(&[
-            "-png",
-            "-r", "150", // 150 DPI for good quality
-            &path,
-            temp_dir.join("page").to_str().unwrap()
-        ])
-        .output();
+    // Try pdftoppm first (from poppler-utils) - check common paths for bundled apps
+    let pdftoppm_paths = [
+        "/opt/homebrew/bin/pdftoppm",  // Apple Silicon Homebrew
+        "/usr/local/bin/pdftoppm",      // Intel Homebrew
+        "pdftoppm",                      // System PATH
+    ];
     
-    let success = if output.is_ok() && output.as_ref().unwrap().status.success() {
-        eprintln!("Used pdftoppm for conversion");
-        true
-    } else {
+    let mut success = false;
+    for pdftoppm_path in pdftoppm_paths {
+        let output = std::process::Command::new(pdftoppm_path)
+            .args(&[
+                "-png",
+                "-r", "150", // 150 DPI for good quality
+                &path,
+                temp_dir.join("page").to_str().unwrap()
+            ])
+            .output();
+        
+        if output.is_ok() && output.as_ref().unwrap().status.success() {
+            success = true;
+            break;
+        }
+    }
+    
+    if !success {
         // Try sips (macOS built-in)
         eprintln!("pdftoppm not available, trying sips...");
         let output = std::process::Command::new("sips")
@@ -480,8 +503,10 @@ fn pdf_to_images(path: String) -> Result<Vec<String>, String> {
             ])
             .output();
         
-        output.is_ok() && output.unwrap().status.success()
-    };
+        if output.is_ok() && output.unwrap().status.success() {
+            success = true;
+        }
+    }
     
     if !success {
         // If both fail, create placeholders
@@ -576,6 +601,7 @@ fn main() {
             save_exercise,
             delete_exercise,
             delete_course,
+            rename_course,
             analyze_page_image,
             pdf_to_images
         ])
