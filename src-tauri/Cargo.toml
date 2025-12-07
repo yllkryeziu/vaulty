@@ -1,6 +1,6 @@
 [package]
 name = "vaulty"
-version = "0.0.0"
+version = "0.1.0"
 description = "Vaulty - Local-first knowledge management"
 authors = ["you"]
 edition = "2021"
