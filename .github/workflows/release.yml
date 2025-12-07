@@ -177,6 +177,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Install create-dmg (macOS only)
+        if: matrix.platform == 'macos-latest'
+        run: brew install create-dmg
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -188,6 +192,26 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Create DMG manually (macOS fallback)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          VERSION="${{ needs.version-bump.outputs.version }}"
+          # Find the .app bundle
+          APP_PATH=$(find src-tauri/target -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            DMG_NAME="Vaulty_${VERSION}_universal.dmg"
+            create-dmg \
+              --volname "Vaulty" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --icon "$(basename $APP_PATH)" 175 190 \
+              --hide-extension "$(basename $APP_PATH)" \
+              --app-drop-link 425 190 \
+              "$DMG_NAME" \
+              "$APP_PATH" || echo "DMG already created by tauri-action"
+          fi
 
   generate-update-manifest:
     needs: [version-bump, build-and-release]
